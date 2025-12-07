@@ -2,6 +2,8 @@ import {prepareData, TemplateDataType} from "Data/PrepareData.js";
 import {PNGto1BIT} from "./PNGto1BIT.js";
 import {TEMPLATE_FOLDER} from "Config.js";
 import App from "Template/JSX/App.js";
+import AppCalendars from "Template/JSX/AppCalendars.js";
+import {fetchCalendarColumns} from "Data/FetchICS.js";
 import {renderToImage} from "./RenderHTML.js";
 import {buildLiquid} from "./BuildLiquid.js";
 import {buildJSX} from "./BuildJSX.js";
@@ -12,13 +14,27 @@ const headerHtml = readFileSync(TEMPLATE_FOLDER + '/Header.html', 'utf8');
 
 const screens = [
     // you can leave one or add more
-    (data: TemplateDataType) => buildJSX(App, data),
-    (data: TemplateDataType) => buildLiquid('HackerNews', data),
+    (data: TemplateDataType) => buildJSX(AppCalendars, data)
+    // (data: TemplateDataType) => buildJSX(App, data),
+    // (data: TemplateDataType) => buildLiquid('HackerNews', data),
 ];
 
 export async function buildScreen() {
     const randomScreen = screens[Math.floor(Math.random() * screens.length)];
     const templateData = await prepareData();
+    // If ICS_URLS is configured in env (comma separated), fetch and attach calendar columns for the upcoming work day
+    try {
+    const ics = process.env['ICS_URLS'];
+        if (ics) {
+            const urls = ics.split(',').map(s => s.trim()).filter(Boolean);
+            if (urls.length) {
+                const columns = await fetchCalendarColumns(urls);
+                (templateData as any).calendarColumns = columns;
+            }
+        }
+    } catch (err: any) {
+        console.error('Failed to fetch ICS calendars', err?.message ?? err);
+    }
     const html = await randomScreen(templateData);
     const image = await renderToImage(headerHtml + html);
     return PNGto1BIT(image);

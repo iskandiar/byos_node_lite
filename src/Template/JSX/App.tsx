@@ -15,10 +15,13 @@ export default function App(data: TemplateDataType) {
     }}>
         <div style={{display: 'flex', flexDirection: 'column', width: '50%', height: '100%'}}>
             <Time style={{alignSelf: 'flex-start'}}/>
-            <HackerNews style={{width: '100%', height: '100%'}}/>
+            Hello world!
+            Wow amazing
+            How are you today?
+            {/* <HackerNews style={{width: '100%', height: '100%'}}/> */}
         </div>
-        <div style={{width: '50%', overflow: 'hidden'}}>
+        {/* <div style={{width: '50%', overflow: 'hidden'}}>
             <img style={{height: '80%', marginLeft: '-50px', marginTop: '10%'}} src='/assets/images/color.jpg'/>
-        </div>
+        </div> */}
     </div>
 }

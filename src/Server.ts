@@ -15,6 +15,22 @@ import {initPuppeteer} from "./Screen/RenderHTML.js";
 export const app = express();
 app.use(express.json());
 
+// Request logging middleware: logs when something connects/hits the server
+app.use((req: Request, res: Response, next: NextFunction) => {
+    const start = Date.now();
+    const remote = req.ip || (req.socket && req.socket.remoteAddress) || '-';
+    const ua = req.get('user-agent') || '-';
+    const referer = req.get('referer') || req.get('referrer') || '-';
+    const qs = Object.keys(req.query).length ? JSON.stringify(req.query) : '-';
+
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        console.log(`[${new Date().toISOString()}] ${remote} ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms UA="${ua}" Ref="${referer}" Q=${qs}`);
+    });
+
+    next();
+});
+
 if (BYOS_ENABLED) {
     app.use('/api', BYOSRoutes);
 }
