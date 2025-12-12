@@ -12,6 +12,11 @@ function nextWorkday(d = new Date()) {
 
 type ParsedEvent = { id?: string; summary?: string; start?: string; end?: string };
 
+// Simple in-memory cache per URL
+type CacheEntry = { fetchedAt: number; events: ParsedEvent[] };
+const ICS_CACHE: Map<string, CacheEntry> = new Map();
+const CACHE_TTL_MS = 60 * 1000; // 60s; align with refresh cadence, adjust if needed
+
 /**
  * Fetch and parse ICS URLs and return an array of columns (one per URL) with events that occur on targetDate
  */
@@ -23,6 +28,14 @@ export async function fetchCalendarColumns(icsUrls: string[], _targetDate?: Date
     const results: ParsedEvent[][] = [];
     for (const url of icsUrls) {
         try {
+            // Serve from cache if fresh
+            const cached = ICS_CACHE.get(url);
+            if (cached && (now.getTime() - cached.fetchedAt) < CACHE_TTL_MS) {
+                // From cache: already filtered/sorted/limited when stored
+                results.push(cached.events);
+                continue;
+            }
+
             const res = await fetch(url);
             if (!res.ok) {
                 console.error(`Failed to fetch ICS ${url} - status ${res.status}`);
@@ -82,6 +95,8 @@ export async function fetchCalendarColumns(icsUrls: string[], _targetDate?: Date
             // Sort by start ascending and keep only current + next 6 per calendar
             events.sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
             const limited = events.slice(0, 6);
+            // Update cache
+            ICS_CACHE.set(url, { fetchedAt: now.getTime(), events: limited });
             results.push(limited);
         } catch (err: any) {
             console.error('Error parsing ICS', url, err.message || err);
