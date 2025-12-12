@@ -15,8 +15,10 @@ type ParsedEvent = { id?: string; summary?: string; start?: string; end?: string
 /**
  * Fetch and parse ICS URLs and return an array of columns (one per URL) with events that occur on targetDate
  */
-export async function fetchCalendarColumns(icsUrls: string[], targetDate?: Date): Promise<ParsedEvent[][]> {
-    const date = targetDate ? new Date(targetDate) : nextWorkday(new Date());
+export async function fetchCalendarColumns(icsUrls: string[], _targetDate?: Date): Promise<ParsedEvent[][]> {
+    // Target current time; include ongoing/upcoming events within the next 3 days, ordered by start
+    const now = new Date();
+    const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
     const results: ParsedEvent[][] = [];
     for (const url of icsUrls) {
@@ -27,7 +29,9 @@ export async function fetchCalendarColumns(icsUrls: string[], targetDate?: Date)
                 results.push([]);
                 continue;
             }
-            const text = await res.text();
+            const rawText = await res.text();
+            // Unfold lines according to RFC 5545 (lines starting with space are continuations)
+            const text = rawText.replace(/\r?\n[ \t]/g, '');
             // Lightweight ICS parsing without external dependency
             const events: ParsedEvent[] = [];
             const veventRegex = /BEGIN:VEVENT([\s\S]*?)END:VEVENT/g;
@@ -44,38 +48,41 @@ export async function fetchCalendarColumns(icsUrls: string[], targetDate?: Date)
                     if (!obj[key]) obj[key] = [];
                     obj[key].push(val);
                 }
-
-                const rawDt = (obj['DTSTART'] && obj['DTSTART'][0]) || (obj['DTSTART;TZID'] && obj['DTSTART;TZID'][0]);
-                const rawEnd = (obj['DTEND'] && obj['DTEND'][0]) || (obj['DTEND;TZID'] && obj['DTEND;TZID'][0]);
+                // Support parameters like DTSTART;TZID=Europe/Warsaw:..., DTSTART;TZID=Europe/Warsaw:...
+                const rawDt = obj['DTSTART']?.[0]
+                    || obj['DTSTART;TZID']?.[0]
+                    || obj['DTSTART;TZID']?.[0]
+                    || extractWithParam(obj, 'DTSTART');
+                const rawEnd = obj['DTEND']?.[0]
+                    || obj['DTEND;TZID']?.[0]
+                    || obj['DTEND;TZID']?.[0]
+                    || extractWithParam(obj, 'DTEND');
                 const summary = (obj['SUMMARY'] && obj['SUMMARY'][0]) || '(no title)';
                 const uid = (obj['UID'] && obj['UID'][0]) || undefined;
                 if (!rawDt) continue;
                 const start = parseICSTime(rawDt);
-                const end = rawEnd ? parseICSTime(rawEnd) : undefined;
+                let end = rawEnd ? parseICSTime(rawEnd) : undefined;
+                // Treat all-day events (DATE-only) as running until end of that day
+                if (!end && isDateOnly(rawDt) && start) {
+                    end = endOfDay(start);
+                }
+                // If still missing end, assume a short meeting duration
+                if (!end && start) {
+                    end = new Date(start.getTime() + 60 * 60 * 1000);
+                }
                 if (!start) continue;
-                if (isSameDay(start, date)) {
-                    // collect attendees lines (keys that start with ATTENDEE)
-                    const attendeeKeys = Object.keys(obj).filter(k => k.startsWith('ATTENDEE'));
-                    let accepted = false;
-                    if (attendeeKeys.length) {
-                        for (const ak of attendeeKeys) {
-                            for (const a of obj[ak]) {
-                                const up = a.toUpperCase();
-                                if (up.includes('PARTSTAT=ACCEPTED') || up.includes('PARTSTAT:ACCEPTED') || up.includes('ACCEPTED')) {
-                                    accepted = true;
-                                    break;
-                                }
-                            }
-                            if (accepted) break;
-                        }
-                    } else {
-                        accepted = true; // no attendees listed -> include
-                    }
-                    if (accepted) events.push({ id: uid, summary, start: start.toISOString(), end: end ? end.toISOString() : undefined });
+                // Include events that are ongoing (end >= now) or upcoming (start >= now) and within next 3 days
+                const isOngoing = end ? end >= now : false;
+                const isUpcoming = start >= now;
+                const withinThreeDays = start <= threeDaysLater;
+                if ((isOngoing || isUpcoming) && withinThreeDays) {
+                    events.push({ id: uid, summary, start: start.toISOString(), end: end ? end.toISOString() : undefined });
                 }
             }
+            // Sort by start ascending and keep only current + next 6 per calendar
             events.sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
-            results.push(events);
+            const limited = events.slice(0, 6);
+            results.push(limited);
         } catch (err: any) {
             console.error('Error parsing ICS', url, err.message || err);
             results.push([]);
@@ -91,10 +98,9 @@ export async function fetchCalendarColumns(icsUrls: string[], targetDate?: Date)
 
 function parseICSTime(raw: string): Date | undefined {
     // raw examples: 20251206T100000Z or 20251206 or 20251206T100000
-    // Normalize to ISO-like string
+    // May contain parameters like VALUE=DATE or TZID=Europe/Warsaw; we strip before ':' above via extractWithParam
     try {
-        // remove any parameters (if present) before the value
-        const val = raw.includes('T') ? raw : raw;
+        const val = raw;
         // If value looks like YYYYMMDD or YYYYMMDDTHHMMSS(Z?)
         const dtRegex = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?/;
         const m = dtRegex.exec(val);
@@ -115,4 +121,22 @@ function parseICSTime(raw: string): Date | undefined {
     } catch (err) {
         return undefined;
     }
+}
+
+// Helper: find first key with prefix like 'DTSTART;TZID=...' and return the value part after ':'
+function extractWithParam(obj: Record<string, string[]>, base: string): string | undefined {
+    const key = Object.keys(obj).find(k => k.startsWith(base + ';'));
+    const val = key ? obj[key][0] : undefined;
+    return val;
+}
+
+function isDateOnly(raw: string): boolean {
+    // True if value is YYYYMMDD without time component
+    return /^\d{8}$/.test(raw);
+}
+
+function endOfDay(d: Date): Date {
+    const end = new Date(d);
+    end.setHours(23, 59, 59, 999);
+    return end;
 }
