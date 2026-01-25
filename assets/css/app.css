@@ -1,5 +1,20 @@
 /* Custom styles for BYOS calendar without external frameworks */
 
+/* Local font: Libre Baskerville (semibold) */
+@font-face {
+  font-family: 'Libre Baskerville';
+  font-style: normal;
+  font-weight: 600;
+  src: local('Libre Baskerville'), local('LibreBaskerville-SemiBold'),
+       url('/assets/fonts/LibreBaskerville-SemiBold.ttf') format('truetype');
+  font-display: swap;
+}
+
+/* Prefer Libre Baskerville globally */
+body {
+  font-family: 'Libre Baskerville', Georgia, 'Times New Roman', serif;
+}
+
 /* Root container */
 .app-container {
   width: 800px;
@@ -8,8 +23,8 @@
   color: #111111;
   box-sizing: border-box;
   padding: 8px 12px;
-  /* Font stack tuned for e‑ink: robust, legible sans-serif with good weight rendering */
-  font-family: "SF Pro Text", "Segoe UI", Roboto, "Noto Sans", Helvetica, Arial, sans-serif;
+  /* Font stack tuned for e‑ink: prefer local serif font */
+  font-family: 'Libre Baskerville', Georgia, 'Times New Roman', serif;
   font-weight: 500; /* slightly heavier to avoid thin strokes on e‑ink */
   letter-spacing: 0.1px; /* subtle spacing improves clarity on e‑ink */
   text-rendering: optimizeLegibility;
