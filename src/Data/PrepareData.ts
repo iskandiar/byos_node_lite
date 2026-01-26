@@ -16,7 +16,9 @@ export type TemplateDataType = {
 export async function prepareData(): Promise<TemplateDataType> {
     const time = new Date().toLocaleTimeString(undefined, {
         timeZone: TIMEZONE,
-        hour: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
     });
     const hackerNews = await getHackerNews();
     return {

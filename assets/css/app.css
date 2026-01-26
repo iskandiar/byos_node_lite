@@ -76,6 +76,15 @@ body {
 .event-summary {
   font-size: 13px;
   font-weight: 600;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.card {
+  overflow: hidden;
 }
 .event-time {
   font-size: 12px;

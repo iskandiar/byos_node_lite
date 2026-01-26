@@ -24,11 +24,20 @@ export async function buildScreen() {
     const templateData = await prepareData();
     // If ICS_URLS is configured in env (comma separated), fetch and attach calendar columns for the upcoming work day
     try {
-    const ics = process.env['ICS_URLS'];
+        const ics = process.env['ICS_URLS'];
         if (ics) {
             const urls = ics.split(',').map(s => s.trim()).filter(Boolean);
             if (urls.length) {
+                const nonIcs = urls.filter(u => !u.toLowerCase().includes('.ics'));
+                if (nonIcs.length) {
+                    console.warn('Non-ICS URL(s) detected; please use iCal .ics links:', nonIcs);
+                }
+                // Fetch and display calendars in order: Work (1st), Life (2nd), Sport (3rd)
                 const columns = await fetchCalendarColumns(urls);
+                urls.forEach((u, idx) => {
+                    const count = columns[idx]?.length ?? 0;
+                    console.log(`ICS[${idx + 1}] count=${count} url=${u}`);
+                });
                 (templateData as any).calendarColumns = columns;
             }
         }
