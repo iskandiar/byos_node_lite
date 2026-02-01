@@ -6,6 +6,21 @@ export const BASE_URL_CHROME = 'http://localhost';
 
 
 let page: Page;
+let renderLock: Promise<void> | null = null;
+
+async function acquireRenderLock(): Promise<() => void> {
+    while (renderLock) {
+        await renderLock;
+    }
+    let release!: () => void;
+    renderLock = new Promise<void>((resolve) => {
+        release = () => {
+            renderLock = null;
+            resolve();
+        };
+    });
+    return release;
+}
 
 export async function initPuppeteer() {
     if (!IS_TEST_ENV) {
@@ -52,7 +67,13 @@ export async function initPuppeteer() {
 
 
 export async function renderToImage(html: string) {
-    await page.setContent(html, {waitUntil: "load"});
-    const image: Uint8Array = await page.screenshot();
-    return Buffer.from(image);
+    if (!page) throw new Error('Puppeteer page not initialized');
+    const release = await acquireRenderLock();
+    try {
+        await page.setContent(html, {waitUntil: "load"});
+        const image: Uint8Array = await page.screenshot();
+        return Buffer.from(image);
+    } finally {
+        release();
+    }
 }

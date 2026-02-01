@@ -3,7 +3,7 @@ import {PNGto1BIT} from "./PNGto1BIT.js";
 import {TEMPLATE_FOLDER} from "Config.js";
 import App from "Template/JSX/App.js";
 import AppCalendars from "Template/JSX/AppCalendars.js";
-import {fetchCalendarColumns} from "Data/FetchICS.js";
+import {fetchCalendarColumns} from "Data/FetchGoogleCalendars.js";
 import {renderToImage} from "./RenderHTML.js";
 import {buildLiquid} from "./BuildLiquid.js";
 import {buildJSX} from "./BuildJSX.js";
@@ -11,6 +11,14 @@ import crypto from "crypto";
 import {readFileSync} from "node:fs";
 
 const headerHtml = readFileSync(TEMPLATE_FOLDER + '/Header.html', 'utf8');
+
+type CalendarSlot = { label: string; envKey: string; id?: string };
+
+const CALENDAR_SLOTS: CalendarSlot[] = [
+    {label: 'Work', envKey: 'GOOGLE_CALENDAR_ID_WORK'},
+    {label: 'Life', envKey: 'GOOGLE_CALENDAR_ID_LIFE'},
+    {label: 'Training', envKey: 'GOOGLE_CALENDAR_ID_TRAINING'},
+];
 
 const screens = [
     // you can leave one or add more
@@ -22,27 +30,41 @@ const screens = [
 export async function buildScreen() {
     const randomScreen = screens[Math.floor(Math.random() * screens.length)];
     const templateData = await prepareData();
-    // If ICS_URLS is configured in env (comma separated), fetch and attach calendar columns for the upcoming work day
+    // If calendar envs are configured, fetch and attach calendar columns
     try {
-        const ics = process.env['ICS_URLS'];
-        if (ics) {
-            const urls = ics.split(',').map(s => s.trim()).filter(Boolean);
-            if (urls.length) {
-                const nonIcs = urls.filter(u => !u.toLowerCase().includes('.ics'));
-                if (nonIcs.length) {
-                    console.warn('Non-ICS URL(s) detected; please use iCal .ics links:', nonIcs);
-                }
-                // Fetch and display calendars in order: Work (1st), Life (2nd), Sport (3rd)
-                const columns = await fetchCalendarColumns(urls);
-                urls.forEach((u, idx) => {
-                    const count = columns[idx]?.length ?? 0;
-                    console.log(`ICS[${idx + 1}] count=${count} url=${u}`);
-                });
-                (templateData as any).calendarColumns = columns;
+        let configuredSlots: CalendarSlot[] = CALENDAR_SLOTS
+            .map(slot => ({...slot, id: process.env[slot.envKey]?.trim()}))
+            .filter(slot => !!slot.id);
+
+        let calendarIds = configuredSlots.map(slot => slot.id!)
+            .filter(Boolean);
+
+        if (!calendarIds.length) {
+            const legacyIds = (process.env['GOOGLE_CALENDAR_IDS'] ?? '')
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean);
+            if (legacyIds.length) {
+                calendarIds = legacyIds;
+                configuredSlots = legacyIds.map((id, idx) => ({
+                    label: `Legacy ${idx + 1}`,
+                    envKey: 'GOOGLE_CALENDAR_IDS',
+                    id,
+                }));
             }
         }
+
+        if (!calendarIds.length) return templateData;
+
+        // Fetch and display calendars in order: Work (1st), Life (2nd), Training (3rd)
+        const columns = await fetchCalendarColumns(calendarIds);
+        configuredSlots.forEach((slot, idx) => {
+            const count = columns[idx]?.length ?? 0;
+            console.log(`GCAL[${idx + 1} ${slot.label}] count=${count} calendarId=${slot.id}`);
+        });
+        (templateData as any).calendarColumns = columns;
     } catch (err: any) {
-        console.error('Failed to fetch ICS calendars', err?.message ?? err);
+        console.error('Failed to fetch Google calendars', err?.message ?? err);
     }
     const html = await randomScreen(templateData);
     const image = await renderToImage(headerHtml + html);

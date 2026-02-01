@@ -4,7 +4,7 @@ import {getHackerNews, HackerNewsData} from "./HackerNewsData.js";
 export type TemplateDataType = {
     time: string
     hackerNews: HackerNewsData,
-    // optional calendar columns populated by ICS fetcher: array of columns, each column is an array of events
+    // optional calendar columns populated via Google Calendar API
     calendarColumns?: Array<Array<{
         id?: string,
         summary?: string,
