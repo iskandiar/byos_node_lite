@@ -7,23 +7,3 @@
     </style>
 </head>
 <body class="environment trmnl">
-    <div class="trmnl-flex trmnl-justify-end trmnl-p-2">
-        <span id="current-time" class="header-time trmnl-text-sm"></span>
-    </div>
-    <script>
-        (function(){
-            function fmtTime(){
-                try {
-                    return new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-                } catch(e) {
-                    return new Date().toLocaleTimeString();
-                }
-            }
-            function update(){
-                var el = document.getElementById('current-time');
-                if (el) el.textContent = fmtTime();
-            }
-            update();
-            setInterval(update, 60*1000);
-        })();
-    </script>
