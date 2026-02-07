@@ -1,5 +1,4 @@
 import {TemplateDataType} from "Data/PrepareData.js";
-import Time from "./Time.js";
 import HackerNews from "./HackerNews.js";
 
 export let templateData: TemplateDataType;
@@ -14,7 +13,6 @@ export default function App(data: TemplateDataType) {
         height: '480px',
     }}>
         <div style={{display: 'flex', flexDirection: 'column', width: '50%', height: '100%'}}>
-            <Time style={{alignSelf: 'flex-start'}}/>
             Hello world!
             Wow amazing
             How are you today?

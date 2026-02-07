@@ -1,24 +1,17 @@
 import {prepareData, TemplateDataType} from "Data/PrepareData.js";
 import {PNGto1BIT} from "./PNGto1BIT.js";
-import {TEMPLATE_FOLDER} from "Config.js";
+import {TEMPLATE_FOLDER, CALENDAR_IDS} from "Config.js";
 import App from "Template/JSX/App.js";
 import AppCalendars from "Template/JSX/AppCalendars.js";
-import {fetchCalendarColumns} from "Data/FetchGoogleCalendars.js";
+import {fetchCalendarColumns, CalendarMetadata} from "Data/FetchGoogleCalendars.js";
 import {renderToImage} from "./RenderHTML.js";
 import {buildLiquid} from "./BuildLiquid.js";
 import {buildJSX} from "./BuildJSX.js";
 import crypto from "crypto";
 import {readFileSync} from "node:fs";
+import {getOrderedCalendars} from "../CalendarConfig.js";
 
 const headerHtml = readFileSync(TEMPLATE_FOLDER + '/Header.html', 'utf8');
-
-type CalendarSlot = { label: string; envKey: string; id?: string };
-
-const CALENDAR_SLOTS: CalendarSlot[] = [
-    {label: 'Work', envKey: 'GOOGLE_CALENDAR_ID_WORK'},
-    {label: 'Life', envKey: 'GOOGLE_CALENDAR_ID_LIFE'},
-    {label: 'Training', envKey: 'GOOGLE_CALENDAR_ID_TRAINING'},
-];
 
 const screens = [
     // you can leave one or add more
@@ -32,35 +25,23 @@ export async function buildScreen() {
     const templateData = await prepareData();
     // If calendar envs are configured, fetch and attach calendar columns
     try {
-        let configuredSlots: CalendarSlot[] = CALENDAR_SLOTS
-            .map(slot => ({...slot, id: process.env[slot.envKey]?.trim()}))
-            .filter(slot => !!slot.id);
+        const configuredCalendars = getOrderedCalendars();
+        
+        // Convert calendars to metadata format for fetching
+        const calendarMetadata: CalendarMetadata[] = configuredCalendars.map(cal => ({
+            id: cal.id!,
+            isWorkCalendar: cal.type === 'work'
+        }));
 
-        let calendarIds = configuredSlots.map(slot => slot.id!)
-            .filter(Boolean);
-
-        if (!calendarIds.length) {
-            const legacyIds = (process.env['GOOGLE_CALENDAR_IDS'] ?? '')
-                .split(',')
-                .map(s => s.trim())
-                .filter(Boolean);
-            if (legacyIds.length) {
-                calendarIds = legacyIds;
-                configuredSlots = legacyIds.map((id, idx) => ({
-                    label: `Legacy ${idx + 1}`,
-                    envKey: 'GOOGLE_CALENDAR_IDS',
-                    id,
-                }));
-            }
-        }
-
-        if (!calendarIds.length) return templateData;
+        if (!calendarMetadata.length) return templateData;
 
         // Fetch and display calendars in order: Work (1st), Life (2nd), Training (3rd)
-        const columns = await fetchCalendarColumns(calendarIds);
-        configuredSlots.forEach((slot, idx) => {
-            const count = columns[idx]?.length ?? 0;
-            console.log(`GCAL[${idx + 1} ${slot.label}] count=${count} calendarId=${slot.id}`);
+        const columns = await fetchCalendarColumns(calendarMetadata);
+        configuredCalendars.forEach((calendar, idx) => {
+            const col = columns[idx];
+            const count = col?.events.length ?? 0;
+            const moreCount = col?.moreCount ?? 0;
+            console.log(`GCAL[${idx + 1} ${calendar.label}] count=${count} moreCount=${moreCount} calendarId=${calendar.id}`);
         });
         (templateData as any).calendarColumns = columns;
     } catch (err: any) {

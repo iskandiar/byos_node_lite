@@ -5,12 +5,15 @@ export type TemplateDataType = {
     time: string
     hackerNews: HackerNewsData,
     // optional calendar columns populated via Google Calendar API
-    calendarColumns?: Array<Array<{
-        id?: string,
-        summary?: string,
-        start?: string,
-        end?: string,
-    }>>
+    calendarColumns?: Array<{
+        events: Array<{
+            id?: string,
+            summary?: string,
+            start?: string,
+            end?: string,
+        }>,
+        moreCount: number
+    }>
 }
 
 export async function prepareData(): Promise<TemplateDataType> {

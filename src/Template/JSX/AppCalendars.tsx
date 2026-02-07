@@ -3,7 +3,7 @@ import {TIMEZONE} from "Config.js";
 // Todo component removed per request
 
 export default function AppCalendars(data: TemplateDataType & { calendarColumns?: any[] }) {
-    const columns = data.calendarColumns ?? [[], [], []];
+    const columns = data.calendarColumns ?? [{ events: [], moreCount: 0 }, { events: [], moreCount: 0 }, { events: [], moreCount: 0 }];
     const names = ["Work", "Life", "Sport"];
 
     // Header: current date (timezone-aware) and last synced time
@@ -16,7 +16,11 @@ export default function AppCalendars(data: TemplateDataType & { calendarColumns?
         </div>
 
         <div className="app-grid">
-            {columns.map((events, i) => (
+            {columns.map((column, i) => {
+                const col = typeof column === 'object' && 'events' in column ? column : { events: column || [], moreCount: 0 };
+                const events = col.events || [];
+                const moreCount = col.moreCount || 0;
+                return (
                 <div key={i} className="card">
                     <div className="card-title">{names[i] ?? `Calendar ${i + 1}`}</div>
                     {events && events.length ? (
@@ -27,12 +31,18 @@ export default function AppCalendars(data: TemplateDataType & { calendarColumns?
                                     <div className="event-time">{formatEventTime(ev.start, ev.end)}</div>
                                 </div>
                             ))}
+                            {moreCount > 0 && (
+                                <div className="more-events">
+                                    <span>+{moreCount} more</span>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="empty">No events</div>
                     )}
                 </div>
-            ))}
+            );
+            })}
         </div>
     </div>
 }

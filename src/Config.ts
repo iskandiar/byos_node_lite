@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import {ROUTE_IMAGE} from "./Routes.js";
 import * as process from "node:process";
+import {getCalendarIds} from "./CalendarConfig.js";
 
 export const SERVER_PORT = 3000;
 export const SERVER_HOST = '0.0.0.0';
@@ -20,6 +21,11 @@ export const ASSETS_FOLDER = path.join(import.meta.dirname, '..', 'assets');
 export const TEMPLATE_FOLDER = path.join(import.meta.dirname, '/', 'Template');
 export const BYOS_DEVICE_MAC = mayReadEnv('BYOS_DEVICE_MAC');
 export const BYOS_DEVICE_ACCESS_TOKEN = mayReadEnv('BYOS_DEVICE_ACCESS_TOKEN');
+
+/**
+ * Calendar configuration - returns IDs in order: Work, Life, Training
+ */
+export const CALENDAR_IDS = getCalendarIds();
 
 if (IS_TEST_ENV) {
     BYOS_ENABLED = true;

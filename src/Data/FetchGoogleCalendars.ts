@@ -1,9 +1,16 @@
 type ParsedEvent = { id?: string; summary?: string; start?: string; end?: string };
 
+export type CalendarColumn = {
+    events: ParsedEvent[];
+    moreCount: number; // Number of additional events not shown
+};
+
 /**
  * Fetch and parse Google Calendar events and return an array of columns (one per calendar).
  */
-import {googleEventToRange, listGoogleCalendarEvents} from './GoogleCalendarData.js';
+import {googleEventToRange, listGoogleCalendarEvents, GoogleEvent} from './GoogleCalendarData.js';
+
+export type CalendarMetadata = { id: string; isWorkCalendar: boolean };
 
 function startOfDay(d: Date): Date {
     const x = new Date(d);
@@ -17,11 +24,11 @@ function endOfDayInclusive(d: Date): Date {
     return x;
 }
 
-export async function fetchCalendarColumns(calendarIds: string[], _targetDate?: Date): Promise<ParsedEvent[][]> {
+export async function fetchCalendarColumns(calendarIds: string[] | CalendarMetadata[], _targetDate?: Date): Promise<CalendarColumn[][]> {
     const now = new Date();
-    const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const rangeStart = startOfDay(now);
-    const rangeEnd = endOfDayInclusive(threeDaysLater);
+    const rangeEnd = endOfDayInclusive(sevenDaysLater);
 
     function hasOOOKeyword(text?: string): boolean {
         if (!text) return false;
@@ -39,8 +46,16 @@ export async function fetchCalendarColumns(calendarIds: string[], _targetDate?: 
         return String(text).toLowerCase().includes('async');
     }
 
+    function isFullDayEvent(ev: GoogleEvent): boolean {
+        // Full-day events have a 'date' but no 'dateTime' in start/end
+        return (ev.start?.date && !ev.start?.dateTime) || (ev.end?.date && !ev.end?.dateTime);
+    }
+
     const results: ParsedEvent[][] = [];
-    for (const calendarId of calendarIds) {
+    for (let idx = 0; idx < calendarIds.length; idx++) {
+        const calendarItem = calendarIds[idx];
+        const calendarId = typeof calendarItem === 'string' ? calendarItem : calendarItem.id;
+        const isWorkCalendar = typeof calendarItem === 'string' ? false : calendarItem.isWorkCalendar;
         try {
             const items = await listGoogleCalendarEvents({
                 calendarId,
@@ -63,11 +78,16 @@ export async function fetchCalendarColumns(calendarIds: string[], _targetDate?: 
 
                 if (hasOOOKeyword(ev.summary) || hasOOOKeyword(ev.description) || hasOOOKeyword(ev.location)) continue;
                 if (hasAsyncKeyword(ev.summary) || hasAsyncKeyword(ev.description) || hasAsyncKeyword(ev.location)) continue;
+                if (isWorkCalendar && isFullDayEvent(ev)) continue;
 
                 const {start, end} = googleEventToRange(ev);
                 if (!start) continue;
                 const overlapsWindow = (end ?? start) >= rangeStart && start <= rangeEnd;
                 if (!overlapsWindow) continue;
+                
+                // Filter out past events - keep only current (ongoing) and future events
+                const eventEnd = end ?? start;
+                if (eventEnd < now) continue;
 
                 parsed.push({
                     id: ev.id,
@@ -78,14 +98,19 @@ export async function fetchCalendarColumns(calendarIds: string[], _targetDate?: 
             }
 
             parsed.sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
-            results.push(parsed.slice(0, 6));
+            const displayedCount = 8;
+            const moreCount = Math.max(0, parsed.length - displayedCount);
+            results.push({
+                events: parsed.slice(0, displayedCount),
+                moreCount
+            });
         } catch (err: any) {
             console.error('Error fetching Google Calendar', calendarId, err?.message || err);
-            results.push([]);
+            results.push({ events: [], moreCount: 0 });
         }
     }
 
-    while (results.length < 3) results.push([]);
+    while (results.length < 3) results.push({ events: [], moreCount: 0 });
     if (results.length > 3) results.splice(3);
 
     return results;
