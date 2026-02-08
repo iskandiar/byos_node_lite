@@ -5,7 +5,7 @@ import {getCalendarIds} from "./CalendarConfig.js";
 
 export const SERVER_PORT = 3000;
 export const SERVER_HOST = '0.0.0.0';
-export const REFRESH_RATE_SECONDS = 60;
+export const REFRESH_RATE_SECONDS = 300;
 export const TIMEZONE = 'Europe/Warsaw';
 export const ALLOW_FIRMWARE_UPDATE = true;
 export const BUTTON_2_CLICK_FUNCTION = 'sleep'; // https://help.usetrmnl.com/en/articles/9672080-special-functions
